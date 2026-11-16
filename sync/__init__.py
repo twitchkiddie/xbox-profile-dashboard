@@ -1,5 +1,5 @@
 from .core import fire_and_forget, fit_changes_to_budget, is_sync_running, sync_guard
-from .games import detect_changed_games, full_library_sync, sync_game_details, sync_game_selective
+from .games import detect_changed_games, full_library_sync, sync_game_details, sync_game_selective, sync_playtime
 from .orchestrator import unified_sync
 from .profile import backfill_game_art, sync_friends, sync_profile
 from .screenshots import sync_screenshots
@@ -15,6 +15,7 @@ __all__ = [
     "sync_game_details",
     "sync_game_selective",
     "sync_guard",
+    "sync_playtime",
     "sync_profile",
     "sync_screenshots",
     "unified_sync",

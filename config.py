@@ -5,7 +5,7 @@ Import from this module instead of hardcoding values throughout the codebase.
 To tune sync behaviour, rate limits, or cache lifetimes, change only this file.
 """
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 # ── Rate Limiting ──────────────────────────────────────────────────────────────
 RATE_LIMIT_MAX = 150  # OpenXBL hard cap per hour
@@ -15,8 +15,10 @@ RATE_LIMIT_BUDGET = 145  # Conservative budget (5-call safety buffer)
 UNIFIED_SYNC_CONCURRENCY = 5  # Parallel game syncs during user-triggered sync
 SCHEDULED_SYNC_CONCURRENCY = 3  # Parallel game syncs during background scheduled sync
 UNIFIED_GAME_BUDGET_PCT = 0.85  # Fraction of remaining budget for game details phase
-SCHEDULED_GAME_BUDGET_PCT = 0.50  # Fraction of remaining budget for scheduled detail sync
-SCHEDULED_GAME_BUDGET_CAP = 30  # Hard cap on API calls per scheduled detail sync run
+# Spend most of the hourly budget on detail backfill. The 5-call safety buffer
+# stays in RATE_LIMIT_BUDGET (limit - 5); this cap never crosses it.
+SCHEDULED_GAME_BUDGET_PCT = 0.90  # Fraction of remaining budget for scheduled detail sync
+SCHEDULED_GAME_BUDGET_CAP = 130  # Hard cap on API calls per scheduled detail sync run
 MIN_SYNC_BUDGET = 5  # Minimum remaining calls required to start any sync
 
 # ── Image proxy warming ────────────────────────────────────────────────────────

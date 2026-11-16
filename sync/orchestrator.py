@@ -20,7 +20,7 @@ from models import SyncResult
 from xbox_api import RateLimitExceeded, get_all_games, library_api_calls
 
 from .core import _guarded_sync, _json, fire_and_forget, fit_changes_to_budget
-from .games import detect_changed_games, sync_game_selective
+from .games import detect_changed_games, sync_game_selective, sync_playtime
 from .profile import backfill_game_art, sync_friends, sync_profile
 from .screenshots import _sync_screenshots_inner
 
@@ -156,12 +156,28 @@ async def _unified_sync_inner():
     games_budget = int(remaining_after_library * UNIFIED_GAME_BUDGET_PCT)
     log.info("Unified sync: games budget=%d API calls (remaining=%d)", games_budget, remaining_after_library)
 
-    batch = []
-    if changes and games_budget > 0:
-        yield _json({"type": "phase", "phase": "games", "message": f"Updating {len(changes)} games..."})
+    detail_changes = [c for c in changes if c["sync_type"] != "stats_only"]
+    if changes:
+        try:
+            total_api_calls += await sync_playtime([c["game"] for c in changes])
+        except RateLimitExceeded as e:
+            log.warning("Unified sync: playtime batch blocked by rate limit: %s", e)
+            phase_warnings.append("playtime batch blocked by rate limit")
+        except Exception as e:
+            log.warning("Unified sync: playtime batch failed: %s", e)
+            phase_warnings.append(f"playtime batch failed: {e}")
 
-        batch, batch_cost = fit_changes_to_budget(changes, games_budget)
-        log.info("Unified sync: batching %d/%d games (cost %d API calls)", len(batch), len(changes), batch_cost)
+    batch = []
+    if detail_changes and games_budget > 0:
+        yield _json({"type": "phase", "phase": "games", "message": f"Updating {len(detail_changes)} games..."})
+
+        batch, batch_cost = fit_changes_to_budget(detail_changes, games_budget)
+        log.info(
+            "Unified sync: batching %d/%d games (cost %d API calls)",
+            len(batch),
+            len(detail_changes),
+            batch_cost,
+        )
 
         if batch:
             fetched = 0
@@ -208,8 +224,8 @@ async def _unified_sync_inner():
                 yield item
 
     # ========== Final summary ==========
-    batch_size = len(batch) if changes and games_budget > 0 else 0
-    remaining_changes = len(changes) - batch_size
+    batch_size = len(batch) if detail_changes and games_budget > 0 else 0
+    remaining_changes = len(detail_changes) - batch_size
     failed_games = batch_size - total_games_updated if batch_size > 0 else 0
     msg = _build_sync_message(
         total_games_updated,

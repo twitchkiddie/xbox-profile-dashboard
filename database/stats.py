@@ -320,10 +320,13 @@ async def get_page_context_data() -> dict:
     sync_row = await cursor.fetchone()
     cursor = await conn.execute("SELECT value FROM settings WHERE key = 'gamerpic'")
     pic_row = await cursor.fetchone()
+    from .games import get_backfill_progress
+
     result = {
         "rate_used": get_api_calls_last_hour(),
         "last_sync": dict(sync_row) if sync_row else None,
         "gamerpic": pic_row["value"] if pic_row else None,
+        "backfill": await get_backfill_progress(),
     }
     _cache_set(CacheKey.PAGE_CONTEXT, result)
     return dict(result)

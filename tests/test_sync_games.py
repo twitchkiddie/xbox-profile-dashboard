@@ -70,7 +70,7 @@ def test_new_game_not_in_db():
     assert len(changes) == 1
     assert changes[0]["sync_type"] == "full"
     assert changes[0]["reason"] == "new game"
-    assert changes[0]["api_cost"] == 3
+    assert changes[0]["api_cost"] == 2
 
 
 def test_game_never_fetched():
@@ -225,6 +225,25 @@ def test_changes_sorted_by_last_played_descending():
     assert ids == ["G2", "G3", "G1"]
 
 
+def test_earned_gamerscore_sorts_ahead_of_newer_empty_titles():
+    """A 2017 game with score is filled in before a newer title with none."""
+    api = [
+        _api_game("NEW", gs=0, total_gs=0, last_played="2024-12-01T00:00:00Z"),
+        _api_game("OLD", gs=400, total_gs=1000, last_played="2017-09-01T00:00:00Z"),
+        _api_game("CATALOG", gs=0, total_gs=1000, last_played="2020-01-01T00:00:00Z"),
+    ]
+    changes = detect_changed_games(api, {})
+    ids = [c["game"]["title_id"] for c in changes]
+    assert ids == ["OLD", "CATALOG", "NEW"]
+
+
+def test_xbox_360_detail_costs_one_call():
+    game = _api_game("X360", last_played="2011-11-01T00:00:00Z")
+    game["devices"] = ["Xbox360"]
+    changes = detect_changed_games([game], {})
+    assert changes[0]["api_cost"] == 1
+
+
 def test_multiple_games_mixed_states():
     """Smoke: new + changed + unchanged games in one batch."""
     api = [
@@ -256,7 +275,7 @@ async def test_selective_full_delegates_to_sync_game_details():
     result = SyncResult(success=True, message="ok", api_calls_used=3)
     with patch("sync.games.sync_game_details", new_callable=AsyncMock, return_value=result) as mock:
         out = await sync_game_selective("G1", "full")
-    mock.assert_called_once_with("G1")
+    mock.assert_called_once_with("G1", include_stats=False)
     assert out.success is True
     assert out.api_calls_used == 3
 

@@ -1,0 +1,12 @@
+<span id="backfill-badge" class="backfill-badge"
+      {% if not backfill or not backfill.total %}hidden{% endif %}
+      title="Games whose achievements and timeline have been filled in"
+      hx-get="/api/backfill" hx-trigger="every 60s" hx-swap="outerHTML">
+    {% if backfill and backfill.total %}
+        {% if backfill.remaining %}
+        Details {{ backfill.done }}/{{ backfill.total }}
+        {% else %}
+        Details up to date
+        {% endif %}
+    {% endif %}
+</span>

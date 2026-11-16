@@ -13,6 +13,7 @@ from .connection import close_connection, get_connection, run_optimize, snapshot
 from .friends import get_friends, upsert_friends
 from .games import (
     get_all_games,
+    get_backfill_progress,
     get_game,
     get_game_index,
     get_games_for_change_detection,
@@ -72,6 +73,7 @@ __all__ = [
     "get_all_games",
     "get_all_screenshots",
     "get_api_calls_last_hour",
+    "get_backfill_progress",
     # connection
     "get_connection",
     # stats

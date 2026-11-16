@@ -2,6 +2,7 @@ import pytest
 
 from database.games import (
     get_all_games,
+    get_backfill_progress,
     get_game,
     update_game_stats,
     update_minutes_played_bulk,
@@ -163,3 +164,16 @@ async def test_update_minutes_played_bulk_does_not_mark_details_fetched():
     assert played["stats_last_fetched"] is None
     assert unknown["minutes_played"] is None
     assert await get_game("missing") is None
+
+
+@pytest.mark.asyncio
+async def test_backfill_progress_counts_unfetched_games():
+    await upsert_games_bulk(
+        [
+            {"title_id": "a", "name": "Fetched"},
+            {"title_id": "b", "name": "Waiting"},
+        ]
+    )
+    await update_game_stats("a", 10)
+    progress = await get_backfill_progress()
+    assert progress == {"total": 2, "done": 1, "remaining": 1}

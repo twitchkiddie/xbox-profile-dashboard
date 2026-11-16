@@ -77,14 +77,21 @@ async def sync_playtime(games: list[dict]) -> int:
     return api_calls
 
 
-async def sync_game_details(title_id: str, devices=None) -> SyncResult:
+async def sync_game_details(title_id: str, devices=None, include_stats: bool = True) -> SyncResult:
     if devices is not None:
         is_x360 = _check_x360(devices)
     else:
         game = await get_game(title_id)
         is_x360 = _check_x360(game.get("devices", "[]")) if game else False
-    needed_calls = 2 if is_x360 else 3
-    log.info("sync_game_details(%s) — x360=%s, need %d calls", title_id, is_x360, needed_calls)
+    achievement_calls = 1 if is_x360 else 2
+    needed_calls = achievement_calls + (1 if include_stats else 0)
+    log.info(
+        "sync_game_details(%s) — x360=%s, stats=%s, need %d calls",
+        title_id,
+        is_x360,
+        include_stats,
+        needed_calls,
+    )
 
     if not can_make_requests(needed_calls):
         log.warning("sync_game_details(%s) — not enough budget", title_id)
@@ -113,13 +120,14 @@ async def sync_game_details(title_id: str, devices=None) -> SyncResult:
 
     # Run stats and achievements in parallel — they hit different endpoints and are independent.
     # return_exceptions=True lets one failure not cancel the other.
-    results = await asyncio.gather(
-        _fetch_stats(),
-        _fetch_achievements(),
-        return_exceptions=True,
-    )
+    jobs = [_fetch_achievements()]
+    labels = ["Achievements"]
+    if include_stats:
+        jobs.insert(0, _fetch_stats())
+        labels.insert(0, "Stats")
+    results = await asyncio.gather(*jobs, return_exceptions=True)
     for i, result in enumerate(results):
-        label = "Stats" if i == 0 else "Achievements"
+        label = labels[i]
         if isinstance(result, Exception):
             log.error("%s: %s fetch failed: %s", title_id, label.lower(), result, exc_info=result)
             errors.append(f"{label}: {result}")
@@ -171,11 +179,15 @@ def detect_changed_games(api_games: list[dict], db_snapshot: dict) -> list[dict]
         db = db_snapshot.get(tid)
 
         if db is None:
-            changes.append({"game": game, "sync_type": "full", "api_cost": 3, "reason": "new game"})
+            changes.append(
+                {"game": game, "sync_type": "full", "api_cost": _detail_api_cost(game), "reason": "new game"}
+            )
             continue
 
         if db["stats_last_fetched"] is None:
-            changes.append({"game": game, "sync_type": "full", "api_cost": 3, "reason": "never fetched"})
+            changes.append(
+                {"game": game, "sync_type": "full", "api_cost": _detail_api_cost(game), "reason": "never fetched"}
+            )
             continue
 
         diffs = []
@@ -192,7 +204,7 @@ def detect_changed_games(api_games: list[dict], db_snapshot: dict) -> list[dict]
                 {
                     "game": game,
                     "sync_type": "full",
-                    "api_cost": 3,
+                    "api_cost": _detail_api_cost(game),
                     "reason": ", ".join(diffs),
                 }
             )
@@ -211,7 +223,7 @@ def detect_changed_games(api_games: list[dict], db_snapshot: dict) -> list[dict]
                 {
                     "game": game,
                     "sync_type": "full",
-                    "api_cost": 3,
+                    "api_cost": _detail_api_cost(game),
                     "reason": f"played after last detail sync ({db_played} > {db_fetched})",
                 }
             )
@@ -219,16 +231,34 @@ def detect_changed_games(api_games: list[dict], db_snapshot: dict) -> list[dict]
 
         skipped += 1
 
+    # Recently played first, then stable-sort so earned gamerscore jumps the queue.
+    # A 2017 game with score (Destiny) is fetched before a brand-new title with none.
     changes.sort(key=lambda c: c["game"].get("last_played") or "", reverse=True)
+    changes.sort(key=_backfill_tier)
 
     log.info("Change detection: %d changes, %d skipped, %d total", len(changes), skipped, len(api_games))
     return changes
 
 
+def _detail_api_cost(game: dict) -> int:
+    """Achievement calls only. MinutesPlayed is batched once for the whole run."""
+    return 1 if _check_x360(game.get("devices")) else 2
+
+
+def _backfill_tier(change: dict) -> int:
+    game = change["game"]
+    if (game.get("current_gamerscore") or 0) > 0:
+        return 0
+    if (game.get("total_gamerscore") or 0) > 0:
+        return 1
+    return 2
+
+
 async def sync_game_selective(title_id: str, sync_type: str) -> SyncResult:
     log.debug("sync_game_selective(%s, %s)", title_id, sync_type)
     if sync_type == "full":
-        return await sync_game_details(title_id)
+        # The caller batches MinutesPlayed first. Don't spend another call per game.
+        return await sync_game_details(title_id, include_stats=False)
 
     api_calls = 0
     errors = []

@@ -1,6 +1,6 @@
 # Xbox Profile Dashboard
 
-Version 1.2.0
+Version 1.3.0
 
 A self-hosted Xbox gaming dashboard built on the [OpenXBL API](https://www.openxbl.com/). It pulls your entire game library, achievements, screenshots, and friends list into a fast, searchable web interface with a WebGPU glass renderer, three themes (light / dark / OLED), and a fully chronological timeline of your gaming history.
 
@@ -15,7 +15,7 @@ No React. No Node.js. Server-rendered HTML, htmx for SPA-like interactivity, and
 - **Screenshots** — gallery of Xbox clips and captures grouped by game
 - **Friends** — online presence status and gamerscore, sorted by activity
 - **Activity heatmap** — GitHub-style calendar of your achievement unlocks, by month or year
-- **Background sync** — APScheduler syncs library (every 4h), game details (2h), and friends (30m)
+- **Background sync** — APScheduler syncs library (every 4h), game details (1h), and friends (30m)
 - **PWA** — installable, with service worker and manifest
 - **WebGPU glass renderer** — physically-based glass panels with Fresnel, chromatic aberration, and aurora background; WebGL2 fallback for unsupported browsers
 
@@ -71,10 +71,10 @@ OpenXBL free tier: **150 requests/hour**. The app auto-detects your plan's limit
 | Operation | API calls |
 |-----------|-----------|
 | Sync full library | 1 per title-history page (`maxItems=10000`, then `continuationToken`) + 1 per 100 games for `MinutesPlayed` + 1 for profile |
-| Per-game detail (stats + achievements + player progress) | 3 |
+| Per-game detail (achievements + player progress; playtime is batched) | 2 (1 for Xbox 360) |
 | Friends sync | 1 |
 
-With a large library, per-game detail fetches are spread across multiple scheduler runs to stay within budget.
+With a large library, per-game detail fetches are spread across hourly scheduler runs. Each run uses up to 90% of the remaining hourly budget, capped at 130 calls, and never crosses the 5-call safety buffer (`RATE_LIMIT_BUDGET`). Games with earned gamerscore are filled in before titles with no score, so older played games are not stuck behind an empty backlog. The nav shows `Details done/total` while that backfill is in progress.
 
 ## Architecture
 

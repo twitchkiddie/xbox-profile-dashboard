@@ -2,11 +2,11 @@
 
 Three periodic jobs:
   1. Library scan — every 4 hours (title-history pages + profile)
-  2. Smart detail sync — every 2 hours, offset 1h (variable API calls)
+  2. Smart detail sync — every hour (variable API calls, capped under the safety budget)
   3. Friends refresh — every 30 minutes (1 API call)
 
 All jobs respect rate limits, skip if a user-triggered sync is running,
-and only consume up to 50% of remaining budget.
+and only consume up to 90% of the remaining safety budget (the 5-call buffer is unchanged).
 """
 
 import asyncio
@@ -48,9 +48,14 @@ async def scheduled_library_sync():
 
 
 async def scheduled_detail_sync():
-    """Smart detail sync — detects changed games and fetches only what's needed.
+    """Smart detail sync — achievements for games that still need them.
 
-    Budget: min(30, 50% of remaining) API calls per run.
+    Playtime is one batched MinutesPlayed call per 100 titles, not a per-game
+    request. Games with earned gamerscore are synced before empty ones.
+    Budget: min(130, 90% of remaining) API calls, which stays inside the
+    5-call safety buffer because remaining is already RATE_LIMIT_BUDGET - used.
+    Runs every hour so the rolling 150/hour window is used instead of waiting
+    two hours between bursts.
     """
     from database import (
         RATE_LIMIT_BUDGET,
@@ -63,6 +68,7 @@ async def scheduled_detail_sync():
         fit_changes_to_budget,
         sync_game_selective,
         sync_guard,
+        sync_playtime,
     )
     from xbox_api import get_all_games
 
@@ -97,15 +103,31 @@ async def scheduled_detail_sync():
             log.debug("Scheduled detail sync — no changes detected")
             return
 
-        # Budget: use at most 30 calls or 50% of remaining (minus the 1 we just used)
+        # Minutes for every changed title, including stats-only, in batches of 100.
+        try:
+            await sync_playtime([c["game"] for c in changes])
+        except Exception as e:
+            log.warning("Scheduled detail sync — playtime batch failed: %s", e)
+
+        detail_changes = [c for c in changes if c["sync_type"] != "stats_only"]
+        if not detail_changes:
+            log.debug("Scheduled detail sync — playtime refreshed, no achievement work")
+            return
+
+        # Budget: at most the cap, and at most 90% of what the safety budget still allows.
         used_now = get_api_calls_last_hour()
         budget = min(SCHEDULED_GAME_BUDGET_CAP, int((RATE_LIMIT_BUDGET - used_now) * SCHEDULED_GAME_BUDGET_PCT))
-        if budget < 2:
+        if budget < 1:
             log.info("Scheduled detail sync — budget too low after library scan")
             return
 
-        batch, batch_cost = fit_changes_to_budget(changes, budget)
-        log.info("Scheduled detail sync: %d/%d games, %d API calls budgeted", len(batch), len(changes), batch_cost)
+        batch, batch_cost = fit_changes_to_budget(detail_changes, budget)
+        log.info(
+            "Scheduled detail sync: %d/%d games, %d API calls budgeted",
+            len(batch),
+            len(detail_changes),
+            batch_cost,
+        )
 
         sem = asyncio.Semaphore(SCHEDULED_SYNC_CONCURRENCY)
 
@@ -167,9 +189,11 @@ def register_jobs():
         scheduled_detail_sync,
         # start_date offsets the first run by 1h so detail sync doesn't fire at the same
         # time as library sync (which runs at the top of each 4h window).
-        trigger=IntervalTrigger(hours=2, start_date="2000-01-01 01:00:00"),
+        # :15 past the hour, so it doesn't start on the same tick as the 30-minute
+        # friends job or the 4-hour library scan.
+        trigger=IntervalTrigger(hours=1, start_date="2000-01-01 00:15:00"),
         id="detail_sync",
-        name="Smart detail sync (2h)",
+        name="Smart detail sync (1h)",
         replace_existing=True,
     )
     scheduler.add_job(

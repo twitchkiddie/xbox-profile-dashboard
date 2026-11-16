@@ -275,6 +275,20 @@ async def recalc_all_games_from_achievements():
     return updated
 
 
+async def get_backfill_progress() -> dict:
+    """How many games have had their achievement detail sync."""
+    conn = await get_read_connection()
+    cursor = await conn.execute(
+        """SELECT COUNT(*) AS total,
+                  COALESCE(SUM(CASE WHEN stats_last_fetched IS NOT NULL THEN 1 ELSE 0 END), 0) AS done
+           FROM games"""
+    )
+    row = await cursor.fetchone()
+    total = int(row["total"] or 0)
+    done = int(row["done"] or 0)
+    return {"total": total, "done": done, "remaining": max(total - done, 0)}
+
+
 async def get_games_needing_details(limit: int = 0) -> list[dict]:
     conn = await get_read_connection()
     # SQLite sorts NULLs last on DESC, so unplayed games land at the bottom
