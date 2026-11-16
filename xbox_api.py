@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 import httpx
 from dotenv import load_dotenv
 
-from config import TITLE_HISTORY_MAX_ITEMS, TITLE_HISTORY_MAX_PAGES
+from config import STATS_BATCH_SIZE, TITLE_HISTORY_MAX_ITEMS, TITLE_HISTORY_MAX_PAGES
 from database import can_make_requests, sync_rate_limit_from_headers
 
 load_dotenv()
@@ -300,14 +300,122 @@ def library_api_calls(fetcher=None) -> int:
     return 1
 
 
+def _minutes_value(raw) -> int | None:
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = int(float(raw))
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    return value
+
+
+def _iter_stat_lists(node: dict):
+    """Yield stat-list objects from every shape the userstats batch uses.
+
+    Observed locations (titlehub / userstats, not verified live against this key):
+    groups[].statlistscollection, groups[].statListsCollection,
+    groups[].statlistcollection, a top-level statlistscollection, users[].scids[].stats,
+    and a top-level stats[] of MinutesPlayed rows.
+    """
+    if not isinstance(node, dict):
+        return
+    for key in ("statlistscollection", "statListsCollection", "statlistcollection"):
+        value = node.get(key)
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    yield item
+    groups = node.get("groups")
+    if isinstance(groups, list):
+        for group in groups:
+            if isinstance(group, dict):
+                yield from _iter_stat_lists(group)
+    users = node.get("users")
+    if isinstance(users, list):
+        for user in users:
+            if not isinstance(user, dict):
+                continue
+            scids = user.get("scids") or []
+            if isinstance(scids, list):
+                for scid in scids:
+                    if isinstance(scid, dict):
+                        stats = scid.get("stats")
+                        if isinstance(stats, list):
+                            yield {"stats": stats}
+                        yield from _iter_stat_lists(scid)
+    stats = node.get("stats")
+    if isinstance(stats, list) and stats and isinstance(stats[0], dict) and stats[0].get("name") == "MinutesPlayed":
+        yield {"stats": stats}
+
+
+def parse_minutes_played(payload: dict) -> dict[str, int]:
+    """Map title id → MinutesPlayed from a stats response. Missing stats are omitted."""
+    if not isinstance(payload, dict):
+        return {}
+    content = _unwrap_content(payload)
+    sources = [content]
+    if content is not payload:
+        sources.append(payload)
+    found: dict[str, int] = {}
+    for source in sources:
+        for stat_list in _iter_stat_lists(source):
+            for stat in stat_list.get("stats") or []:
+                if not isinstance(stat, dict) or stat.get("name") != "MinutesPlayed":
+                    continue
+                title_id = str(stat.get("titleid") or stat.get("titleId") or "")
+                minutes = _minutes_value(stat.get("value"))
+                if title_id and minutes is not None:
+                    found[title_id] = minutes
+    return found
+
+
+async def get_minutes_played(title_ids: list[str]) -> tuple[dict[str, int], int]:
+    """Batch MinutesPlayed via POST /player/stats. Returns (minutes_by_title, api_calls).
+
+    Titles that do not publish the stat are absent from the dict (unknown, not zero).
+    Stops when the rate-limit budget is exhausted; already-fetched minutes are kept.
+    """
+    unique: list[str] = []
+    seen: set[str] = set()
+    for raw_id in title_ids:
+        title_id = str(raw_id or "")
+        if title_id and title_id not in seen:
+            seen.add(title_id)
+            unique.append(title_id)
+
+    found: dict[str, int] = {}
+    api_calls = 0
+    for start in range(0, len(unique), STATS_BATCH_SIZE):
+        if not can_make_requests():
+            log.warning(
+                "MinutesPlayed batch stopped — budget exhausted (%d/%d titles)",
+                len(found),
+                len(unique),
+            )
+            break
+        batch = unique[start : start + STATS_BATCH_SIZE]
+        body = {
+            "xuids": [str(XUID)] if XUID else [],
+            "stats": [{"name": "MinutesPlayed", "titleId": title_id} for title_id in batch],
+        }
+        raw = await _request("POST", "/player/stats", body)
+        api_calls += 1
+        found.update(parse_minutes_played(raw))
+    log.info("MinutesPlayed for %d/%d titles in %d API call(s)", len(found), len(unique), api_calls)
+    return found, api_calls
+
+
 async def get_game_stats(title_id: str) -> dict:
-    data = await _get(f"/achievements/stats/{title_id}")
-    minutes = None
-    for stat_list in data.get("statlistscollection", []):
-        for stat in stat_list.get("stats", []):
-            if stat.get("name") == "MinutesPlayed":
-                minutes = int(stat.get("value", 0))
-    return {"minutes_played": minutes}
+    """MinutesPlayed for one title. Uses the batch stats endpoint so the stat is requested by name.
+
+    GET /achievements/stats/{titleId} often returns an empty collection because
+    MinutesPlayed is not in the default hero list unless it is named in the body.
+    """
+    minutes, _calls = await get_minutes_played([title_id])
+    return {"minutes_played": minutes.get(str(title_id))}
 
 
 async def get_title_achievements(title_id: str) -> tuple[list[dict], int]:

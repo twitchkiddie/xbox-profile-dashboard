@@ -5,7 +5,7 @@ Import from this module instead of hardcoding values throughout the codebase.
 To tune sync behaviour, rate limits, or cache lifetimes, change only this file.
 """
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 # ── Rate Limiting ──────────────────────────────────────────────────────────────
 RATE_LIMIT_MAX = 150  # OpenXBL hard cap per hour
@@ -36,6 +36,10 @@ LIBRARY_EXPORT_LIMIT = 10_000
 # 10000 in one shot; if the service still pages, follow continuationToken.
 TITLE_HISTORY_MAX_ITEMS = 10_000
 TITLE_HISTORY_MAX_PAGES = 40
+
+# POST /player/stats accepts many MinutesPlayed rows per call. 100 matches the
+# batch size other OpenXBL clients use without tripping payload limits.
+STATS_BATCH_SIZE = 100
 
 
 class CacheKey:

@@ -24,6 +24,7 @@ from .games import (
     recalc_game_from_achievements,
     update_game_blurhash,
     update_game_stats,
+    update_minutes_played_bulk,
     update_tracking,
     upsert_games_bulk,
 )
@@ -116,6 +117,7 @@ __all__ = [
     "update_achievement_progress",
     "update_game_blurhash",
     "update_game_stats",
+    "update_minutes_played_bulk",
     "update_sync_log",
     "update_tracking",
     "upsert_achievements",
