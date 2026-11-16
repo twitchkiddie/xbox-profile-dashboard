@@ -75,14 +75,29 @@
         padding: 0.2rem;
     }
 
-    .nav-link,
-    .nav-pill-glow span {
-        padding: 0.4rem 0.6rem;
-        font-size: 0.75rem;
+    .nav-inner {
+        flex-wrap: wrap;
+        height: auto;
+        row-gap: 0.45rem;
+        padding: 0.45rem 0.75rem;
     }
 
-    .nav-inner {
-        padding: 0 0.75rem;
+    .nav-pill {
+        order: 3;
+        flex: 1 0 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .nav-pill::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-link,
+    .nav-pill-glow span {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.82rem;
     }
 
     .rate-limit-badge {
@@ -96,6 +111,13 @@
 }
 
 @media (max-width: 480px) {
+    .nav-link,
+    .nav-pill-glow span {
+        padding: 0.4rem 0.42rem;
+        font-size: 0.72rem;
+        letter-spacing: 0;
+    }
+
     .filters-inline select {
         min-width: 0;
         flex-basis: calc(50% - 0.25rem);
@@ -121,5 +143,3 @@
         gap: 0.3rem;
     }
 }
-
-

@@ -1,6 +1,6 @@
 # Xbox Profile Dashboard
 
-Version 1.4.0
+Version 1.5.0
 
 A self-hosted Xbox gaming dashboard built on the [OpenXBL API](https://www.openxbl.com/). It pulls your entire game library, achievements, screenshots, and friends list into a fast, searchable web interface with a WebGPU glass renderer, three themes (light / dark / OLED), and a fully chronological timeline of your gaming history.
 
@@ -212,6 +212,7 @@ To add a column: add an `ALTER TABLE` entry to the `MIGRATIONS` list in `databas
 - **Tracking status:** Unset (gray) · Backlog (blue) · Playing (green) · Finished (purple) · Dropped (red)
 - **Themes:** light / dark / OLED — toggled via `data-theme` + `data-oled` attributes, persisted in `localStorage`
 - **Glass renderer:** WebGPU primary (`glass-webgpu.js`), WebGL2 fallback (`glass.js`) — slope-field refraction (IOR 1.5), Fresnel, adaptive Gaussian blur pyramid, chromatic aberration, edge reflection, aurora background. The nav **Glass** button turns the aurora canvas and both glass scripts off. The choice is stored in `settings` and survives restarts. Unset, the animation stays on.
+- **Profile stats:** the hero shows four cards — gamerscore, total play time, games, and completion. On a phone they sit in a 2×2 grid, and the library rows keep the title on one line instead of wrapping a letter at a time.
 
 ## Credits
 

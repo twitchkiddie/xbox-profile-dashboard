@@ -1,4 +1,4 @@
-{# Profile hero — avatar, gamertag, real-data subline, milestone bar, three big numbers #}
+{# Profile hero — identity, then four stat cards: gamerscore, play time, games, completion #}
 <article class="profile-hero anim-blur-rise">
     <div class="profile-hero-grid">
         <div class="profile-hero-pic">
@@ -12,11 +12,6 @@
         <div class="profile-hero-meta">
             <h1 class="profile-hero-name">{{ gamertag | default('Xbox User') }}</h1>
             <div class="profile-hero-chips">
-                {% if stats.completion_rate_pct is not none and stats.total_games %}
-                <span class="profile-hero-chip">
-                    <b>{{ "%.1f"|format(stats.completion_rate_pct) }}%</b> perfectionist
-                </span>
-                {% endif %}
                 {% if stats.avg_gamerscore_per_game %}
                 <span class="profile-hero-chip">
                     <b>{{ "{:,}".format(stats.avg_gamerscore_per_game) }}G</b> avg / game
@@ -45,19 +40,23 @@
                 </div>
             </div>
         </div>
-        <div class="profile-hero-stats">
-            <div class="profile-hero-stat">
-                <div class="v gold">{{ "{:,}".format(stats.total_gamerscore or 0) }}</div>
-                <div class="l">Gamerscore</div>
-            </div>
-            <div class="profile-hero-stat">
-                <div class="v">{{ "{:,}".format(stats.total_games or 0) }}</div>
-                <div class="l">Games</div>
-            </div>
-            <div class="profile-hero-stat">
-                <div class="v">{{ (stats.total_minutes or 0) | playtime or '0m' }}</div>
-                <div class="l">Played</div>
-            </div>
+    </div>
+    <div class="profile-stats">
+        <div class="profile-stat">
+            <div class="profile-stat-l">Gamerscore</div>
+            <div class="profile-stat-v gold">{{ "{:,}".format(stats.total_gamerscore or 0) }}</div>
+        </div>
+        <div class="profile-stat">
+            <div class="profile-stat-l">Play time</div>
+            <div class="profile-stat-v">{{ (stats.total_minutes or 0) | playtime or '0m' }}</div>
+        </div>
+        <div class="profile-stat">
+            <div class="profile-stat-l">Games</div>
+            <div class="profile-stat-v">{{ "{:,}".format(stats.total_games or 0) }}</div>
+        </div>
+        <div class="profile-stat">
+            <div class="profile-stat-l">Completion</div>
+            <div class="profile-stat-v">{{ "%.1f"|format(stats.completion_rate_pct or 0) }}%</div>
         </div>
     </div>
 </article>
