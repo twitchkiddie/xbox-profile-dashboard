@@ -201,17 +201,47 @@ async def test_get_all_games_maps_fields(httpx_mock):
 # ---------------------------------------------------------------------------
 
 
+def test_parse_minutes_played_reads_grouped_and_top_level_shapes():
+    """MinutesPlayed is not always a top-level statlistscollection of strings."""
+    grouped = {
+        "groups": [
+            {
+                "name": "Hero",
+                "statListsCollection": [{"stats": [{"name": "MinutesPlayed", "titleId": "10", "value": 90}]}],
+            }
+        ]
+    }
+    top_level = {
+        "content": {
+            "statlistscollection": [
+                {"stats": [{"name": "MinutesPlayed", "titleid": "11", "value": "15"}]},
+            ]
+        },
+        "code": 200,
+    }
+    assert xbox_api.parse_minutes_played(grouped) == {"10": 90}
+    assert xbox_api.parse_minutes_played(top_level) == {"11": 15}
+    assert xbox_api.parse_minutes_played({"statlistscollection": []}) == {}
+
+
 @pytest.mark.asyncio
 async def test_get_game_stats_extracts_minutes_played(httpx_mock):
     httpx_mock.add_response(
-        url=f"{BASE}/achievements/stats/123",
+        method="POST",
+        url=f"{BASE}/player/stats",
         json={
-            "statlistscollection": [
+            "groups": [
                 {
-                    "stats": [
-                        {"name": "MinutesPlayed", "value": "450"},
-                        {"name": "SomethingElse", "value": "99"},
-                    ]
+                    "name": "Hero",
+                    "titleid": "123",
+                    "statlistscollection": [
+                        {
+                            "stats": [
+                                {"name": "MinutesPlayed", "titleid": "123", "value": "450"},
+                                {"name": "SomethingElse", "value": "99"},
+                            ]
+                        }
+                    ],
                 }
             ]
         },
@@ -222,13 +252,37 @@ async def test_get_game_stats_extracts_minutes_played(httpx_mock):
 
 @pytest.mark.asyncio
 async def test_get_game_stats_returns_none_when_missing(httpx_mock):
-    """Returns None for minutes_played when stat is absent."""
+    """Returns None for minutes_played when the stat is absent."""
     httpx_mock.add_response(
-        url=f"{BASE}/achievements/stats/123",
+        method="POST",
+        url=f"{BASE}/player/stats",
         json={"statlistscollection": []},
     )
     result = await xbox_api.get_game_stats("123")
     assert result == {"minutes_played": None}
+
+
+@pytest.mark.asyncio
+async def test_get_minutes_played_batches(httpx_mock, monkeypatch):
+    """One POST covers STATS_BATCH_SIZE titles; the remainder is a second call."""
+    monkeypatch.setattr(xbox_api, "STATS_BATCH_SIZE", 2)
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE}/player/stats",
+        json={"statlistscollection": [{"stats": [{"name": "MinutesPlayed", "titleid": "1", "value": "5"}]}]},
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE}/player/stats",
+        json={
+            "stats": [{"name": "MinutesPlayed", "titleId": "3", "value": 0}],
+        },
+    )
+    found, calls = await xbox_api.get_minutes_played(["1", "2", "1", "3"])
+    assert calls == 2
+    assert found["1"] == 5
+    assert found["3"] == 0
+    assert "2" not in found
 
 
 # ---------------------------------------------------------------------------

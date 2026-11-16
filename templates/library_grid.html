@@ -29,9 +29,14 @@
                 </div>
                 <span class="pct-{{ pct_class }}">{{ game.progress_percentage }}%</span>
             </div>
-            {% if game.total_gamerscore %}
-            <span class="lib-grid-gs">{{ "{:,}".format(game.current_gamerscore) }}G</span>
-            {% endif %}
+            <span class="lib-grid-side">
+                {% if game.minutes_played %}
+                <span class="lib-grid-time">{{ game.minutes_played | playtime }}</span>
+                {% endif %}
+                {% if game.total_gamerscore %}
+                <span class="lib-grid-gs">{{ "{:,}".format(game.current_gamerscore) }}G</span>
+                {% endif %}
+            </span>
         </div>
     </div>
 </a>

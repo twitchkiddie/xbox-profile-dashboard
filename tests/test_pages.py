@@ -61,6 +61,19 @@ async def test_dashboard_with_data(client):
     assert resp.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_playtime_shows_on_profile_and_game(client):
+    await db.upsert_games_bulk([_GAME])
+    await db.update_minutes_played_bulk({"PG001": 90})
+    profile = client.get("/")
+    assert profile.status_code == 200
+    assert "1h 30m" in profile.text
+    detail = client.get("/game/PG001")
+    assert "1h 30m" in detail.text
+    grid = client.get("/api/library/grid")
+    assert "1h 30m" in grid.text
+
+
 # ---------------------------------------------------------------------------
 # /library
 # ---------------------------------------------------------------------------

@@ -7,11 +7,12 @@ from database import (
     get_game,
     mark_game_fetched,
     update_game_stats,
+    update_minutes_played_bulk,
     update_sync_log,
     upsert_games_bulk,
 )
 from models import SyncResult
-from xbox_api import RateLimitExceeded, get_all_games, get_game_stats, library_api_calls
+from xbox_api import RateLimitExceeded, get_all_games, get_game_stats, get_minutes_played, library_api_calls
 
 from .achievements import (
     _check_x360,
@@ -31,8 +32,9 @@ async def full_library_sync() -> SyncResult:
         games = await get_all_games()
         library_calls = library_api_calls(get_all_games)
         count = await upsert_games_bulk(games)
+        playtime_calls = await sync_playtime(games)
         profile_ok = await sync_profile()  # store gamerpic (non-critical, +1 API call)
-        api_calls = library_calls + 1
+        api_calls = library_calls + playtime_calls + 1
         await update_sync_log(
             sync_id,
             "success" if profile_ok else "partial",
@@ -55,6 +57,24 @@ async def full_library_sync() -> SyncResult:
         log.error("Full library sync failed: %s", e, exc_info=True)
         await update_sync_log(sync_id, "failed", error_message=str(e))
         return SyncResult(success=False, message=f"Sync failed: {e}")
+
+
+async def sync_playtime(games: list[dict]) -> int:
+    """Fill minutes_played for the given titles with batched MinutesPlayed calls."""
+    title_ids = [str(game["title_id"]) for game in games if game.get("title_id")]
+    if not title_ids:
+        return 0
+    try:
+        minutes, api_calls = await get_minutes_played(title_ids)
+    except RateLimitExceeded:
+        log.warning("Playtime batch blocked by rate limit")
+        raise
+    except Exception:
+        log.warning("Playtime batch failed", exc_info=True)
+        return 0
+    if minutes:
+        await update_minutes_played_bulk(minutes)
+    return api_calls
 
 
 async def sync_game_details(title_id: str, devices=None) -> SyncResult:

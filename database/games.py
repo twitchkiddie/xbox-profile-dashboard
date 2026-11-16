@@ -165,6 +165,32 @@ async def get_game(title_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+async def update_minutes_played_bulk(minutes_by_title: dict[str, int]) -> int:
+    """Write MinutesPlayed without touching stats_last_fetched.
+
+    stats_last_fetched means the achievement detail sync has run. A playtime
+    batch must not mark those games as fully fetched or the backfill will skip them.
+    Zero is not stored: a missing stat and a real zero both stay NULL so the UI
+    can keep showing "unknown" until a positive value arrives.
+    """
+    rows = []
+    for title_id, minutes in minutes_by_title.items():
+        if isinstance(minutes, int) and minutes > 0 and title_id:
+            rows.append((minutes, str(title_id)))
+    if not rows:
+        return 0
+    conn = await get_connection()
+    await conn.executemany(
+        """UPDATE games SET minutes_played = ?, updated_at = datetime('now')
+           WHERE title_id = ?""",
+        rows,
+    )
+    await conn.commit()
+    _cache_invalidate(CacheKey.DASHBOARD_STATS)
+    log.info("Updated minutes_played for %d games", len(rows))
+    return len(rows)
+
+
 async def update_game_stats(title_id: str, minutes_played: int | None):
     conn = await get_connection()
     if minutes_played is not None and minutes_played > 0:

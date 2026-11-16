@@ -1016,6 +1016,21 @@ html:not(.glass-refract) #library-table-wrap {
     flex-shrink: 0;
 }
 
+.lib-grid-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    flex-shrink: 0;
+}
+
+.lib-grid-time {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 .lib-grid-gs {
     font-family: var(--font-mono);
     font-size: 0.72rem;
@@ -1040,4 +1055,3 @@ html:not(.glass-refract) #library-table-wrap {
         gap: 0.75rem;
     }
 }
-

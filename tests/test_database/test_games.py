@@ -1,6 +1,13 @@
 import pytest
 
-from database.games import get_all_games, get_game, update_game_stats, update_tracking, upsert_games_bulk
+from database.games import (
+    get_all_games,
+    get_game,
+    update_game_stats,
+    update_minutes_played_bulk,
+    update_tracking,
+    upsert_games_bulk,
+)
 
 
 @pytest.mark.asyncio
@@ -137,3 +144,22 @@ async def test_update_game_stats():
     game = await get_game("3")
     assert game["minutes_played"] == 120
     assert game["stats_last_fetched"] is not None
+
+
+@pytest.mark.asyncio
+async def test_update_minutes_played_bulk_does_not_mark_details_fetched():
+    await upsert_games_bulk(
+        [
+            {"title_id": "10", "name": "Played"},
+            {"title_id": "11", "name": "Unknown"},
+        ]
+    )
+    updated = await update_minutes_played_bulk({"10": 90, "11": 0, "missing": 40})
+    # Zero is skipped. A positive value for an unknown title is attempted and matches no row.
+    assert updated == 2
+    played = await get_game("10")
+    unknown = await get_game("11")
+    assert played["minutes_played"] == 90
+    assert played["stats_last_fetched"] is None
+    assert unknown["minutes_played"] is None
+    assert await get_game("missing") is None
