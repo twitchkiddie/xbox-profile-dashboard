@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" class="scroll-ready">
+{% set glass_on = aurora_enabled|default(true) %}
+<html lang="en" data-theme="dark" class="scroll-ready"{% if not glass_on %} data-aurora="off"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,15 +15,19 @@
     <link rel="dns-prefetch" href="https://screenshotscontent-t3001.media.xboxlive.com">
     <link rel="dns-prefetch" href="https://screenshotscontent-t4001.media.xboxlive.com">
     <link rel="preload" href="{{ static_url('js/vendor/lenis.min.js') }}" as="script">
+    {% if glass_on %}
     <link rel="preload" href="{{ static_url('js/glass-core.js') }}" as="script">
     <link rel="preload" href="{{ static_url('js/glass-webgpu.js') }}" as="script">
+    {% endif %}
     <link rel="preload" href="{{ static_url('js/app.js') }}" as="script">
     <link rel="preload" href="{{ static_url('js/vendor/minisearch.min.js') }}" as="script">
     <link rel="preload" href="{{ static_url('js/vendor/hotkeys.min.js') }}" as="script">
     <link rel="stylesheet" href="{{ css_bundle_url() }}">
     <script defer src="{{ static_url('js/vendor/htmx.min.js') }}"></script>
+    {% if glass_on %}
     <!-- Canvas starts hidden; fades in after first render so the CSS aurora is never interrupted -->
     <style id="aurora-canvas-hide">#aurora-canvas{opacity:0}</style>
+    {% endif %}
     {{ head_html|safe }}
 </head>
 <body class="{{ body_class_html }}">

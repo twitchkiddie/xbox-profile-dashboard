@@ -283,6 +283,22 @@
     display: none;
 }
 
+.nav-effects-btn {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-btn);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.nav-effects-btn:hover {
+    color: var(--text-primary);
+}
+
 .rate-limit-badge:hover {
     color: var(--text-secondary);
     border-color: var(--border-default);

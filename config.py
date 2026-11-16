@@ -5,7 +5,7 @@ Import from this module instead of hardcoding values throughout the codebase.
 To tune sync behaviour, rate limits, or cache lifetimes, change only this file.
 """
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 # ── Rate Limiting ──────────────────────────────────────────────────────────────
 RATE_LIMIT_MAX = 150  # OpenXBL hard cap per hour

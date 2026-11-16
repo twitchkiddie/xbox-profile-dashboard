@@ -32,6 +32,17 @@ async def test_set_setting_overwrites():
 
 
 @pytest.mark.asyncio
+async def test_aurora_saved_value_beats_env(monkeypatch):
+    monkeypatch.setenv("XBOX_AURORA", "0")
+    assert await db.aurora_enabled() is False
+    await db.set_aurora_enabled(True)
+    assert await db.aurora_enabled() is True
+    await db.set_aurora_enabled(False)
+    monkeypatch.setenv("XBOX_AURORA", "1")
+    assert await db.aurora_enabled() is False
+
+
+@pytest.mark.asyncio
 async def test_set_multiple_keys_independent():
     await db.set_setting("k1", "v1")
     await db.set_setting("k2", "v2")

@@ -324,9 +324,10 @@ def stream_shell_response(
 ) -> StreamingResponse:
     """Render a full page in three streamed phases to shave FCP.
 
-    Phase 1 — yields _shell_head.html (DOCTYPE, <head>, open <body>). No DB
-    work runs here, so the browser starts fetching CSS/JS preloads while the
-    server does the DB round-trips.
+    Phase 1 — yields _shell_head.html (DOCTYPE, <head>, open <body>). The only
+    DB read is the aurora preference, so the glass scripts are not even
+    preloaded when it is off. The browser then fetches CSS while the rest of
+    the DB round-trips run.
 
     Phase 2 — awaits `data_factory()` for the full template context (expected
     to already include page_ctx keys: gamertag, gamerpic, rate_used, last_sync).
@@ -357,13 +358,16 @@ def stream_shell_response(
     close_template = templates.get_template("_shell_main_close.html")
 
     async def generate() -> AsyncIterator[bytes]:
-        # Phase 1: head (synchronous, no DB). Globals like static_url and
-        # css_bundle_url are already registered on the Jinja env.
+        # One settings read before the head so the aurora canvas and glass
+        # scripts are omitted entirely when the effect is off. Everything else
+        # in the head is still static.
+        glass_on = await db.aurora_enabled()
         head_ctx = {
             "request": request,
             "page_title": title,
             "body_class_html": body_class,
             "head_html": head_extra,
+            "aurora_enabled": glass_on,
         }
         yield head_template.render(head_ctx).encode("utf-8")
 
@@ -380,7 +384,7 @@ def stream_shell_response(
         # Phase 3: body. Overlay / extra_scripts templates (if provided) are
         # rendered with the same ctx so child-template blocks can reference
         # data like stats or static_url.
-        ctx = {**ctx, "request": request}
+        ctx = {**ctx, "request": request, "aurora_enabled": glass_on}
         try:
             yield nav_template.render(ctx).encode("utf-8")
             yield content_tpl.render(ctx).encode("utf-8")

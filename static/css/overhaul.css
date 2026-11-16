@@ -455,3 +455,23 @@ html:not(.glass-refract) .tracking-form input[type="date"] {
     background-image: none;
 }
 
+/* Aurora and glass turned off: solid panels, no backdrop blur, no grain. */
+html[data-aurora="off"] {
+    --glass-bg: rgba(18, 19, 26, 0.96);
+    --glass-blur-radius: 0px;
+}
+
+html[data-aurora="off"] body::after {
+    display: none;
+}
+
+html[data-aurora="off"] article,
+html[data-aurora="off"] .xbox-nav,
+html[data-aurora="off"] .chart-card,
+html[data-aurora="off"] .lib-grid-card,
+html[data-aurora="off"] .cmd-panel,
+html[data-aurora="off"] .shortcuts-panel {
+    background: var(--glass-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
