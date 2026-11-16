@@ -673,3 +673,80 @@
 .profile-tl-preview .timeline-dot {
     z-index: 3;
 }
+
+/* Calmer hero: a short green wash, a plain ring, and four readable stat cards. */
+.profile-hero::before {
+    background: linear-gradient(135deg, rgba(16, 124, 16, 0.22) 0%, transparent 46%);
+    mix-blend-mode: normal;
+}
+
+.profile-hero::after {
+    display: none;
+}
+
+.profile-hero-pic {
+    width: 112px;
+    padding: 0;
+    background: none;
+    box-shadow: 0 0 0 2px rgba(16, 124, 16, 0.9);
+}
+
+.profile-hero-grid {
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.profile-hero-name {
+    font-size: clamp(1.7rem, 1.2rem + 1.2vw, 2.4rem);
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.profile-stat {
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-stat-l {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #a0a0a0);
+}
+
+.profile-stat-v {
+    margin-top: 0.25rem;
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.35rem, 1rem + 1vw, 1.85rem);
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.profile-stat-v.gold {
+    color: var(--rarity-legendary, #f5b942);
+}
+
+@media (max-width: 900px) {
+    .profile-hero-grid {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas: "pic meta";
+    }
+
+    .profile-hero-pic {
+        width: 84px;
+    }
+
+    .profile-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+}

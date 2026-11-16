@@ -1051,7 +1051,111 @@ html:not(.glass-refract) #library-table-wrap {
 
 @media (max-width: 600px) {
     .lib-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+}
+
+/* Quieter cards: art stays put, titles stay readable, play time is a real line. */
+.lib-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.lib-grid-card {
+    border-radius: 16px;
+    background: rgba(18, 19, 26, 0.55);
+}
+
+.lib-grid-card:hover {
+    transform: translateY(-2px);
+}
+
+.lib-grid-card:hover .lib-grid-art img {
+    transform: none;
+}
+
+.lib-grid-info {
+    padding: 0.8rem 0.9rem 0.9rem;
+    gap: 0.45rem;
+}
+
+.lib-grid-name {
+    font-size: 0.95rem;
+    line-height: 1.25;
+}
+
+.lib-grid-time {
+    font-size: 0.78rem;
+    color: var(--text-primary);
+}
+
+.lib-grid-meta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+}
+
+.lib-grid-side {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+}
+
+.tag {
+    white-space: nowrap;
+}
+
+.game-name {
+    min-width: 0;
+}
+
+/* Phone library: two columns so the title is a line, not a stack of letters. */
+@media (max-width: 760px) {
+    #library-table-wrap.grid-rows thead {
+        display: none;
+    }
+
+    #library-table-wrap.grid-rows .game-row {
+        grid-template-columns: 56px minmax(0, 1fr);
+        grid-template-areas:
+            "art name"
+            "art score"
+            "art bar"
+            "art time";
+        align-items: center;
+        row-gap: 0.3rem;
+        column-gap: 0.75rem;
+        padding: 0.8rem;
+    }
+
+    #library-table-wrap.grid-rows .game-row td:nth-child(1) { grid-area: art; }
+    #library-table-wrap.grid-rows .game-row td:nth-child(2) { grid-area: name; min-width: 0; }
+    #library-table-wrap.grid-rows .game-row td:nth-child(3) { grid-area: score; justify-content: flex-start; }
+    #library-table-wrap.grid-rows .game-row td:nth-child(4) { grid-area: bar; justify-content: flex-start; }
+    #library-table-wrap.grid-rows .game-row td:nth-child(7) { grid-area: time; justify-content: flex-start; }
+
+    #library-table-wrap.grid-rows .game-row td:nth-child(5),
+    #library-table-wrap.grid-rows .game-row td:nth-child(6) {
+        display: none;
+    }
+
+    .game-name {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .grid-rows .game-thumb {
+        width: 56px;
+        height: 56px;
+        border-radius: 10px;
+    }
+
+    .lib-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.75rem;
     }
 }

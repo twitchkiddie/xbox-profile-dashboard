@@ -109,6 +109,9 @@ async def test_playtime_shows_on_profile_and_game(client):
     profile = client.get("/")
     assert profile.status_code == 200
     assert "1h 30m" in profile.text
+    assert "Play time" in profile.text
+    assert "Completion" in profile.text
+    assert "Gamerscore" in profile.text
     detail = client.get("/game/PG001")
     assert "1h 30m" in detail.text
     grid = client.get("/api/library/grid")
