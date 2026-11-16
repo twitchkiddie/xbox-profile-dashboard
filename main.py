@@ -237,13 +237,14 @@ async def service_worker():
 
 
 # Routers imported after app creation to avoid circular import (routers → helpers → app)
-from routers import captures, friends, game, img, library, pages, stats, sync_routes  # noqa: E402
+from routers import captures, friends, game, img, library, pages, settings, stats, sync_routes  # noqa: E402
 
 app.include_router(pages.router)
 app.include_router(library.router)
 app.include_router(game.router)
 app.include_router(sync_routes.router)
 app.include_router(stats.router)
+app.include_router(settings.router)
 app.include_router(captures.router)
 app.include_router(friends.router)
 app.include_router(img.router)

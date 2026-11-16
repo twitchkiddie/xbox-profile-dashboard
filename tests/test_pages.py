@@ -53,6 +53,47 @@ def test_dashboard_empty_db(client):
     assert "text/html" in resp.headers["content-type"]
 
 
+def test_aurora_defaults_on(client, monkeypatch):
+    monkeypatch.delenv("XBOX_AURORA", raising=False)
+    page = client.get("/")
+    assert 'id="aurora-canvas"' in page.text
+    assert 'class="aurora"' in page.text
+    assert "glass-webgpu.js" in page.text
+    assert "glass-core.js" in page.text
+
+
+def test_aurora_setting_persists_and_skips_glass(client, monkeypatch):
+    monkeypatch.delenv("XBOX_AURORA", raising=False)
+    saved = client.post("/api/settings/aurora", json={"enabled": False})
+    assert saved.status_code == 200
+    assert saved.json()["enabled"] is False
+
+    page = client.get("/")
+    assert 'id="aurora-canvas"' not in page.text
+    assert 'class="aurora"' not in page.text
+    assert "glass-webgpu.js" not in page.text
+    assert "glass-core.js" not in page.text
+    assert 'data-aurora="off"' in page.text
+    assert "Glass off" in page.text
+
+    # The saved row wins over the env var, and it is still off on another route.
+    monkeypatch.setenv("XBOX_AURORA", "1")
+    library = client.get("/library")
+    assert "glass-webgpu.js" not in library.text
+
+    client.post("/api/settings/aurora", json={"enabled": True})
+    restored = client.get("/")
+    assert 'id="aurora-canvas"' in restored.text
+    assert "Glass on" in restored.text
+
+
+def test_aurora_env_disables_when_nothing_is_saved(client, monkeypatch):
+    monkeypatch.setenv("XBOX_AURORA", "0")
+    page = client.get("/")
+    assert 'id="aurora-canvas"' not in page.text
+    assert "glass-webgpu.js" not in page.text
+
+
 @pytest.mark.asyncio
 async def test_dashboard_with_data(client):
     await db.upsert_games_bulk([_GAME])

@@ -45,7 +45,7 @@ from .screenshots import (
     get_screenshots_for_game,
     upsert_screenshots,
 )
-from .settings import get_setting, set_setting
+from .settings import aurora_enabled, get_setting, set_aurora_enabled, set_setting
 from .setup import init_db
 from .stats import get_achievement_stats, get_dashboard_stats, get_page_context_data, get_status_counts
 from .sync import clear_sync_failures, create_sync_log, get_sync_failures, log_sync_failure, update_sync_log
@@ -60,6 +60,7 @@ __all__ = [
     "_cache_invalidate",
     "_cache_invalidate_prefix",
     "_cache_set",
+    "aurora_enabled",
     "can_make_requests",
     "clear_sync_failures",
     "close_connection",
@@ -112,6 +113,7 @@ __all__ = [
     "recalc_all_games_from_achievements",
     "recalc_game_from_achievements",
     "run_optimize",
+    "set_aurora_enabled",
     "set_setting",
     "snapshot_db",
     # rate_limit

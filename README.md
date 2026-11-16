@@ -1,6 +1,6 @@
 # Xbox Profile Dashboard
 
-Version 1.3.0
+Version 1.4.0
 
 A self-hosted Xbox gaming dashboard built on the [OpenXBL API](https://www.openxbl.com/). It pulls your entire game library, achievements, screenshots, and friends list into a fast, searchable web interface with a WebGPU glass renderer, three themes (light / dark / OLED), and a fully chronological timeline of your gaming history.
 
@@ -49,6 +49,7 @@ Open http://localhost:8000. The SQLite database is created automatically on firs
 | `XBOX_GAMERTAG` | No | Override auto-resolved gamertag |
 | `XBOX_XUID` | No | Override auto-resolved XUID |
 | `XBOX_DEV` | No | Set to `1` to enable CSS hot-rebuild during development |
+| `XBOX_AURORA` | No | `0` turns off the animated aurora and the WebGPU/WebGL glass layer before any saved preference exists. Unset keeps them on. The nav **Glass** button saves the choice in the database and wins over this variable. |
 
 All other behaviour (rate budgets, sync concurrency, pagination sizes) is configured in `config.py`.
 
@@ -210,7 +211,7 @@ To add a column: add an `ALTER TABLE` entry to the `MIGRATIONS` list in `databas
 - **Rarity:** Common (gray) · Rare (blue) · Epic (purple) · Legendary (amber)
 - **Tracking status:** Unset (gray) · Backlog (blue) · Playing (green) · Finished (purple) · Dropped (red)
 - **Themes:** light / dark / OLED — toggled via `data-theme` + `data-oled` attributes, persisted in `localStorage`
-- **Glass renderer:** WebGPU primary (`glass-webgpu.js`), WebGL2 fallback (`glass.js`) — slope-field refraction (IOR 1.5), Fresnel, adaptive Gaussian blur pyramid, chromatic aberration, edge reflection, aurora background
+- **Glass renderer:** WebGPU primary (`glass-webgpu.js`), WebGL2 fallback (`glass.js`) — slope-field refraction (IOR 1.5), Fresnel, adaptive Gaussian blur pyramid, chromatic aberration, edge reflection, aurora background. The nav **Glass** button turns the aurora canvas and both glass scripts off. The choice is stored in `settings` and survives restarts. Unset, the animation stays on.
 
 ## Credits
 
