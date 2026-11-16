@@ -43,6 +43,7 @@
                     {{ icon('clock', 12) }}
                     {{ rate_used | default(0) }}/150
                 </span>
+                {% include "_backfill_badge.html" %}
                 <button class="nav-search-btn" onclick="openCmdPalette()" title="Search (Ctrl+K)" aria-label="Open command palette">
                     {{ icon('search', 15) }}
                     <kbd class="nav-search-hint">⌘K</kbd>

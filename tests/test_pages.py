@@ -72,6 +72,9 @@ async def test_playtime_shows_on_profile_and_game(client):
     assert "1h 30m" in detail.text
     grid = client.get("/api/library/grid")
     assert "1h 30m" in grid.text
+    assert "Details 0/1" in profile.text
+    badge = client.get("/api/backfill")
+    assert "Details 0/1" in badge.text
 
 
 # ---------------------------------------------------------------------------

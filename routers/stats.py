@@ -1,7 +1,8 @@
-from fastapi import APIRouter
-from fastapi.responses import ORJSONResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, ORJSONResponse
 
 import database as db
+from helpers import templates
 
 router = APIRouter()
 
@@ -14,6 +15,13 @@ async def api_stats():
 @router.get("/api/activity/month")
 async def api_monthly_activity(year: int, month: int):
     return await db.get_monthly_activity(year, month)
+
+
+@router.get("/api/backfill", response_class=HTMLResponse)
+async def api_backfill(request: Request):
+    """Achievement-detail backfill progress. Polled by the nav badge."""
+    progress = await db.get_backfill_progress()
+    return templates.TemplateResponse(request, "_backfill_badge.html", {"backfill": progress})
 
 
 @router.get("/api/rate-limit")
