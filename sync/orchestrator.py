@@ -17,7 +17,7 @@ from database import (
     warm_stats_cache,
 )
 from models import SyncResult
-from xbox_api import RateLimitExceeded, get_all_games
+from xbox_api import RateLimitExceeded, get_all_games, library_api_calls
 
 from .core import _guarded_sync, _json, fire_and_forget, fit_changes_to_budget
 from .games import detect_changed_games, sync_game_selective
@@ -110,7 +110,7 @@ async def _unified_sync_inner():
 
     try:
         api_games = await get_all_games()
-        total_api_calls += 1
+        total_api_calls += library_api_calls(get_all_games)
     except RateLimitExceeded as e:
         log.warning("Unified sync blocked by rate limit: %s", e)
         await update_sync_log(sync_id, "failed", error_message=str(e))

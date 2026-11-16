@@ -1,8 +1,11 @@
 """Central configuration — all policy constants live here.
 
+APP_VERSION follows semver. Bump minor for behavior changes and patch for fixes.
 Import from this module instead of hardcoding values throughout the codebase.
 To tune sync behaviour, rate limits, or cache lifetimes, change only this file.
 """
+
+APP_VERSION = "1.1.0"
 
 # ── Rate Limiting ──────────────────────────────────────────────────────────────
 RATE_LIMIT_MAX = 150  # OpenXBL hard cap per hour
@@ -28,6 +31,11 @@ ACHIEVEMENTS_PAGE_SIZE = 60
 CAPTURES_PAGE_SIZE = 50
 TIMELINE_PAGE_SIZE = 50
 LIBRARY_EXPORT_LIMIT = 10_000
+
+# Titlehub returns 100 titles when maxItems is omitted. The Xbox app asks for
+# 10000 in one shot; if the service still pages, follow continuationToken.
+TITLE_HISTORY_MAX_ITEMS = 10_000
+TITLE_HISTORY_MAX_PAGES = 40
 
 
 class CacheKey:

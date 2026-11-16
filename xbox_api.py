@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 import httpx
 from dotenv import load_dotenv
 
+from config import TITLE_HISTORY_MAX_ITEMS, TITLE_HISTORY_MAX_PAGES
 from database import can_make_requests, sync_rate_limit_from_headers
 
 load_dotenv()
@@ -46,25 +47,172 @@ async def close_client():
         _client = None
 
 
-async def _get(endpoint: str) -> dict:
+async def _request(method: str, endpoint: str, json_body: dict | None = None) -> dict:
+    """Perform one budgeted OpenXBL call and return the raw JSON object.
+
+    The v2 envelope ``{"content": ..., "code": ...}`` is left intact so callers
+    that need a sibling ``pagingInfo`` can see it. ``_get`` unwraps ``content``.
+    """
     if _client is None:
         raise RuntimeError("HTTP client not initialized — call init_client() first")
     if not can_make_requests():
         log.warning("Rate limit budget exhausted — blocking request to %s", endpoint)
         raise RateLimitExceeded("Rate limit budget exhausted (145/150). Try again later.")
     url = f"{BASE_URL}{endpoint}"
-    log.debug("GET %s", url)
-    resp = await _client.get(url)
+    log.debug("%s %s", method, url)
+    if method == "POST":
+        resp = await _client.post(url, json=json_body or {})
+    else:
+        resp = await _client.get(url)
     # Update rate limit from API headers (authoritative source)
     await sync_rate_limit_from_headers(resp.headers, endpoint, resp.status_code)
     if resp.status_code != 200:
         log.error("API %s returned %d: %s", endpoint, resp.status_code, resp.text[:200])
     resp.raise_for_status()
     data = resp.json()
+    return data if isinstance(data, dict) else {}
+
+
+def _unwrap_content(data: dict) -> dict:
     # API wraps all responses in {"content": {...}, "code": ...} envelope
     if isinstance(data, dict) and "content" in data and isinstance(data["content"], dict):
         return data["content"]
-    return data
+    return data if isinstance(data, dict) else {}
+
+
+async def _get(endpoint: str) -> dict:
+    return _unwrap_content(await _request("GET", endpoint))
+
+
+# Titlehub device tokens. Older payloads say "Win32"; the current Xbox app says "PC".
+# Play Anywhere titles list an Xbox console alongside the PC token and must be kept.
+_XBOX_CONSOLE_DEVICES = frozenset({"xbox360", "xboxone", "xboxseries", "xboxseriesx", "xboxseriess", "scarlett"})
+_PC_ONLY_DEVICES = frozenset({"win32", "pc", "windows"})
+
+
+def is_pc_only_devices(devices) -> bool:
+    """True when the title is PC-only and has no Xbox console device.
+
+    An empty or missing device list is kept: we don't drop a title we can't
+    classify. Hybrids such as ``["XboxSeries", "Win32"]`` or ``["XboxOne", "PC"]``
+    stay, because those are Play Anywhere / Xbox titles with a PC build.
+    """
+    if isinstance(devices, str):
+        devices = [devices]
+    if not isinstance(devices, list) or not devices:
+        return False
+    names = {str(d).strip().lower() for d in devices if str(d).strip()}
+    if not names or names & _XBOX_CONSOLE_DEVICES:
+        return False
+    return names <= _PC_ONLY_DEVICES
+
+
+def _continuation_token(payload: dict | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    paging = payload.get("pagingInfo") or payload.get("paging_info") or {}
+    token = None
+    if isinstance(paging, dict):
+        token = paging.get("continuationToken") or paging.get("continuation_token")
+    if not token:
+        token = payload.get("continuationToken") or payload.get("continuation_token")
+    if token is None:
+        return None
+    text = str(token).strip()
+    if not text or text.lower() == "null":
+        return None
+    return text
+
+
+def _titles_from_payload(payload: dict) -> list:
+    if not isinstance(payload, dict):
+        return []
+    titles = payload.get("titles")
+    if isinstance(titles, list):
+        return titles
+    content = payload.get("content")
+    if isinstance(content, dict):
+        inner = content.get("titles")
+        if isinstance(inner, list):
+            return inner
+    return []
+
+
+def _map_title(title: dict) -> dict | None:
+    title_id = title.get("titleId")
+    name = title.get("name")
+    if title_id is None or not name:
+        return None
+    devices = title.get("devices") or []
+    if is_pc_only_devices(devices):
+        return None
+    ach = title.get("achievement") or {}
+    hist = title.get("titleHistory") or {}
+    gp = title.get("gamePass") or {}
+    return {
+        "title_id": str(title_id),
+        "name": name,
+        "display_image": title.get("displayImage", ""),
+        "devices": devices if isinstance(devices, list) else [],
+        "current_gamerscore": ach.get("currentGamerscore", 0),
+        "total_gamerscore": ach.get("totalGamerscore", 0),
+        "progress_percentage": ach.get("progressPercentage", 0),
+        "current_achievements": ach.get("currentAchievements", 0),
+        "total_achievements": ach.get("totalAchievements", 0),
+        "last_played": hist.get("lastTimePlayed"),
+        "xbox_live_tier": title.get("xboxLiveTier"),
+        "pfn": title.get("pfn"),
+        "is_gamepass": gp.get("isGamePass", False),
+    }
+
+
+async def _page_titles(path: str) -> tuple[list[dict], int]:
+    """Follow maxItems + continuationToken until the history is exhausted."""
+    titles: list[dict] = []
+    seen_ids: set[str] = set()
+    seen_tokens: set[str] = set()
+    continuation: str | None = None
+    api_calls = 0
+
+    for page_index in range(TITLE_HISTORY_MAX_PAGES):
+        if page_index and not can_make_requests():
+            log.warning(
+                "Title history paging stopped — budget exhausted after %d titles (%d calls)",
+                len(titles),
+                api_calls,
+            )
+            break
+        params: list[tuple[str, str]] = [("maxItems", str(TITLE_HISTORY_MAX_ITEMS))]
+        if continuation:
+            params.append(("continuationToken", continuation))
+        raw = await _request("GET", f"{path}?{urlencode(params)}")
+        api_calls += 1
+        page = _titles_from_payload(raw)
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else None
+        token = _continuation_token(content) or _continuation_token(raw)
+        added = 0
+        for title in page:
+            if not isinstance(title, dict):
+                continue
+            tid = str(title.get("titleId") or "")
+            if not tid or tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+            titles.append(title)
+            added += 1
+        log.info(
+            "Title history %s page %d: %d new titles (%d total)",
+            path,
+            page_index + 1,
+            added,
+            len(titles),
+        )
+        if not token or token in seen_tokens or added == 0:
+            break
+        seen_tokens.add(token)
+        continuation = token
+
+    return titles, api_calls
 
 
 async def get_profile() -> dict:
@@ -98,38 +246,58 @@ async def resolve_identity() -> tuple[str, str]:
 
 
 async def get_all_games() -> list[dict]:
-    data = await _get(f"/titles/{XUID}")
-    titles = data.get("titles", [])
-    log.info("Title history returned %d titles (pre-filter)", len(titles))
+    """Fetch the full title history, paging past titlehub's default 100.
+
+    ``/player/titleHistory/{xuid}`` is the documented OpenXBL route. ``maxItems``
+    is what the Xbox app sends (10000); ``pagingInfo.continuationToken`` covers
+    services that still page. ``/titles/{xuid}`` is the fallback — it is the
+    route that returned exactly 100 when called with no query string.
+
+    ``last_api_calls`` records how many requests this invocation spent so sync
+    logs can count multi-page fetches. Verified against OpenXBL's published
+    schema and the titlehub contract, not a live key.
+    """
+    raw_titles: list[dict] = []
+    api_calls = 0
+    primary = f"/player/titleHistory/{XUID}"
+    try:
+        raw_titles, api_calls = await _page_titles(primary)
+    except httpx.HTTPStatusError as exc:
+        # The failed call was already logged against the rate budget inside _request.
+        if exc.response.status_code not in (404, 405):
+            get_all_games.last_api_calls = 1
+            raise
+        log.warning("Title history %s returned %s — falling back to /titles", primary, exc.response.status_code)
+        raw_titles, extra = await _page_titles(f"/titles/{XUID}")
+        api_calls = extra + 1
+
     games = []
-    for t in titles:
-        devices = t.get("devices", [])
-        # Skip PC-only titles (Win32 with no Xbox device) — they appear in title history
-        # but have no Xbox achievements and no meaningful gamerscore data.
-        if devices == ["Win32"]:
-            continue
-        ach = t.get("achievement", {})
-        hist = t.get("titleHistory", {})
-        gp = t.get("gamePass", {})
-        games.append(
-            {
-                "title_id": str(t["titleId"]),
-                "name": t["name"],
-                "display_image": t.get("displayImage", ""),
-                "devices": t.get("devices", []),
-                "current_gamerscore": ach.get("currentGamerscore", 0),
-                "total_gamerscore": ach.get("totalGamerscore", 0),
-                "progress_percentage": ach.get("progressPercentage", 0),
-                "current_achievements": ach.get("currentAchievements", 0),
-                "total_achievements": ach.get("totalAchievements", 0),
-                "last_played": hist.get("lastTimePlayed"),
-                "xbox_live_tier": t.get("xboxLiveTier"),
-                "pfn": t.get("pfn"),
-                "is_gamepass": gp.get("isGamePass", False),
-            }
-        )
-    log.info("Returning %d games (Win32-only filtered out)", len(games))
+    for title in raw_titles:
+        mapped = _map_title(title)
+        if mapped is not None:
+            games.append(mapped)
+    get_all_games.last_api_calls = api_calls
+    log.info(
+        "Returning %d games from %d titles (%d API calls, PC-only filtered)",
+        len(games),
+        len(raw_titles),
+        api_calls,
+    )
     return games
+
+
+get_all_games.last_api_calls = 1
+
+
+def library_api_calls(fetcher=None) -> int:
+    """How many title-history requests the last get_all_games spent.
+
+    Mocks that replace get_all_games don't set an int, so callers fall back to 1.
+    """
+    raw = getattr(fetcher if fetcher is not None else get_all_games, "last_api_calls", None)
+    if isinstance(raw, int) and raw > 0:
+        return raw
+    return 1
 
 
 async def get_game_stats(title_id: str) -> dict:
