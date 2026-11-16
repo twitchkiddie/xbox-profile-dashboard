@@ -1,5 +1,7 @@
 # Xbox Profile Dashboard
 
+Version 1.1.0
+
 A self-hosted Xbox gaming dashboard built on the [OpenXBL API](https://www.openxbl.com/). It pulls your entire game library, achievements, screenshots, and friends list into a fast, searchable web interface with a WebGPU glass renderer, three themes (light / dark / OLED), and a fully chronological timeline of your gaming history.
 
 No React. No Node.js. Server-rendered HTML, htmx for SPA-like interactivity, and a single Python process.
@@ -68,7 +70,7 @@ OpenXBL free tier: **150 requests/hour**. The app auto-detects your plan's limit
 
 | Operation | API calls |
 |-----------|-----------|
-| Sync full library | 1 |
+| Sync full library | 1 per title-history page (`maxItems=10000`, then `continuationToken`) + 1 for profile |
 | Per-game detail (stats + achievements + player progress) | 3 |
 | Friends sync | 1 |
 
@@ -85,7 +87,7 @@ graph TD
     end
 
     subgraph Routers["Routers"]
-        pages["pages.py"] 
+        pages["pages.py"]
         library["library.py"]
         game["game.py"]
         sync_r["sync_routes.py"]
@@ -190,7 +192,7 @@ To add a column: add an `ALTER TABLE` entry to the `MIGRATIONS` list in `databas
 ## OpenXBL API Notes
 
 **Useful endpoints:**
-- `/player/titleHistory/{xuid}` — full game list with achievements, Game Pass flag, and playtime
+- `/player/titleHistory/{xuid}?maxItems=10000` — full game list with achievements and the Game Pass flag. Titlehub defaults to 100 titles when `maxItems` is omitted, which is why a single `/titles/{xuid}` call stopped at exactly 100. The client follows `pagingInfo.continuationToken` when the service still pages, and falls back to `/titles/{xuid}` with the same query if title history returns 404. PC-only titles (`Win32`, `PC`, or `Windows`, with no Xbox console device) are dropped; Play Anywhere titles that list an Xbox device alongside PC are kept.
 - `/achievements/player/{xuid}/{titleId}` — player progress including `time_unlocked`
 - `/achievements/title/{titleId}` — achievement definitions with rarity and media
 - `/achievements/stats/{titleId}` — `MinutesPlayed` stat
@@ -254,4 +256,3 @@ If `--reload` misses changes across multiple files, delete `__pycache__/` and re
 ## Further Reading
 
 `architecture.html` (open locally in a browser) contains an interactive diagram of the full system — hover any box for per-module details including line counts, key functions, and data flow.
-

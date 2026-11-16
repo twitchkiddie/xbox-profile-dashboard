@@ -108,28 +108,82 @@ def _make_title(title_id, name, devices, ach=None, gp=False):
     }
 
 
+def test_is_pc_only_devices():
+    """PC-only tokens are dropped; Xbox hybrids and unknown lists are kept."""
+    assert xbox_api.is_pc_only_devices(["Win32"]) is True
+    assert xbox_api.is_pc_only_devices(["PC"]) is True
+    assert xbox_api.is_pc_only_devices(["windows"]) is True
+    assert xbox_api.is_pc_only_devices(["Win32", "PC"]) is True
+    assert xbox_api.is_pc_only_devices(["XboxSeries", "Win32"]) is False
+    assert xbox_api.is_pc_only_devices(["XboxOne", "PC"]) is False
+    assert xbox_api.is_pc_only_devices(["Xbox360"]) is False
+    assert xbox_api.is_pc_only_devices([]) is False
+    assert xbox_api.is_pc_only_devices(None) is False
+    assert xbox_api.is_pc_only_devices(["Mobile"]) is False
+
+
 @pytest.mark.asyncio
 async def test_get_all_games_filters_win32_only(httpx_mock):
-    """Titles with devices==["Win32"] are excluded; Xbox titles are kept."""
+    """PC-only titles are excluded; Xbox and Play Anywhere titles are kept."""
     httpx_mock.add_response(
-        url=f"{BASE}/titles/{XUID}",
+        url=f"{BASE}/player/titleHistory/{XUID}?maxItems=10000",
         json={
             "titles": [
                 _make_title("111", "Xbox Game", ["XboxSeries", "Win32"]),
                 _make_title("222", "PC Only", ["Win32"]),
+                _make_title("333", "Modern PC", ["PC"]),
+                _make_title("444", "Play Anywhere", ["XboxOne", "PC"]),
             ]
         },
     )
     games = await xbox_api.get_all_games()
-    assert len(games) == 1
-    assert games[0]["title_id"] == "111"
+    assert [g["title_id"] for g in games] == ["111", "444"]
+    assert xbox_api.get_all_games.last_api_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_get_all_games_follows_continuation_token(httpx_mock):
+    """Pages past the historical 100-title cap via continuationToken."""
+    httpx_mock.add_response(
+        url=f"{BASE}/player/titleHistory/{XUID}?maxItems=10000",
+        json={
+            "titles": [_make_title("111", "Recent", ["XboxSeries"])],
+            "pagingInfo": {"continuationToken": "page-2"},
+        },
+    )
+    httpx_mock.add_response(
+        url=f"{BASE}/player/titleHistory/{XUID}?maxItems=10000&continuationToken=page-2",
+        json={
+            "content": {
+                "titles": [_make_title("222", "Destiny", ["XboxOne"])],
+                "pagingInfo": {"continuationToken": None},
+            },
+            "code": 200,
+        },
+    )
+    games = await xbox_api.get_all_games()
+    assert [g["title_id"] for g in games] == ["111", "222"]
+    assert xbox_api.get_all_games.last_api_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_get_all_games_falls_back_to_titles_route(httpx_mock):
+    """A 404 on titleHistory retries the legacy /titles route with the same paging."""
+    httpx_mock.add_response(url=f"{BASE}/player/titleHistory/{XUID}?maxItems=10000", status_code=404)
+    httpx_mock.add_response(
+        url=f"{BASE}/titles/{XUID}?maxItems=10000",
+        json={"titles": [_make_title("999", "Halo", ["XboxSeries"], gp=True)]},
+    )
+    games = await xbox_api.get_all_games()
+    assert games[0]["title_id"] == "999"
+    assert xbox_api.get_all_games.last_api_calls == 2
 
 
 @pytest.mark.asyncio
 async def test_get_all_games_maps_fields(httpx_mock):
     """All expected fields are present and correctly mapped."""
     httpx_mock.add_response(
-        url=f"{BASE}/titles/{XUID}",
+        url=f"{BASE}/player/titleHistory/{XUID}?maxItems=10000",
         json={"titles": [_make_title("999", "Halo", ["XboxSeries"], gp=True)]},
     )
     games = await xbox_api.get_all_games()

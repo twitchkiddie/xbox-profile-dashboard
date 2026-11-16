@@ -1,7 +1,7 @@
 """Scheduled background sync using APScheduler.
 
 Three periodic jobs:
-  1. Library scan — every 4 hours (2 API calls)
+  1. Library scan — every 4 hours (title-history pages + profile)
   2. Smart detail sync — every 2 hours, offset 1h (variable API calls)
   3. Friends refresh — every 30 minutes (1 API call)
 
@@ -28,7 +28,7 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 
 
 async def scheduled_library_sync():
-    """Full library scan — cheap (2 API calls), runs every 4 hours."""
+    """Full library scan — title history pages plus profile, runs every 4 hours."""
     from database import can_make_requests
     from sync import backfill_game_art, fire_and_forget, full_library_sync, sync_guard
 

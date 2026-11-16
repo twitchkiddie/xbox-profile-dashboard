@@ -11,7 +11,7 @@ from database import (
     upsert_games_bulk,
 )
 from models import SyncResult
-from xbox_api import RateLimitExceeded, get_all_games, get_game_stats
+from xbox_api import RateLimitExceeded, get_all_games, get_game_stats, library_api_calls
 
 from .achievements import (
     _check_x360,
@@ -29,13 +29,15 @@ async def full_library_sync() -> SyncResult:
     sync_id = await create_sync_log("full_library")
     try:
         games = await get_all_games()
+        library_calls = library_api_calls(get_all_games)
         count = await upsert_games_bulk(games)
         profile_ok = await sync_profile()  # store gamerpic (non-critical, +1 API call)
+        api_calls = library_calls + 1
         await update_sync_log(
             sync_id,
             "success" if profile_ok else "partial",
             games_updated=count,
-            api_calls_used=2,
+            api_calls_used=api_calls,
             error_message=None if profile_ok else "profile sync failed",
         )
         log.info("Full library sync complete: %d games", count)
@@ -43,7 +45,7 @@ async def full_library_sync() -> SyncResult:
             success=True,
             message=f"Synced {count} games from Xbox Live.",
             games_updated=count,
-            api_calls_used=2,
+            api_calls_used=api_calls,
         )
     except RateLimitExceeded as e:
         log.warning("Full library sync blocked by rate limit: %s", e)
